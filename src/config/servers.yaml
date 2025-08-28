@@ -1,3 +1,5 @@
+Proxy_ip: "127.0.0.1"
+Proxy_port: 79
 servers:
   - name: server1
     ip_address : "3.16.124.53"
@@ -6,5 +8,6 @@ servers:
     ip_address : "3.134.88.212"
     weight: 5.5
 algorithm: "url hash"
+port: 8989
    
   

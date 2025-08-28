@@ -83,6 +83,7 @@ func (a *ApplicationsServers) sendRequest(clonedRequest coreRequest) (coreReques
 type serverConfig struct {
 	Servers      []ApplicationsServers `yaml:"servers"`
 	LoadBalencer string                `yaml:"algorithm"`
+	Port         string                `yaml:"port"`
 }
 
 func (s *serverConfig) parseAlgorithm() loadbalencer {
@@ -126,7 +127,6 @@ type rawRequest struct {
 }
 
 func writeResponse(w http.ResponseWriter, resp coreRequest) {
-	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(resp.body)
 	for k, v := range resp.headers {
 		for _, v := range v {
@@ -262,7 +262,6 @@ func main() {
 	go handleStream(algo, workerChannel, s)
 
 	fmt.Printf("running on port :79 \n ")
-	panic("")
 	http.ListenAndServe(":79", nil)
 
 }
