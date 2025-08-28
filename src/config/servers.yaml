@@ -1,0 +1,10 @@
+servers:
+  - name: server1
+    ip_address : "3.16.124.53"
+    weight : 5.5
+  - name: server2
+    ip_address : "3.134.88.212"
+    weight: 5.5
+algorithm: "url hash"
+   
+  
