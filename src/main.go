@@ -27,17 +27,4 @@ func main() {
 	fmt.Printf("running on port %s\n", server.Proxy_port)
 	http.ListenAndServe(":"+server.Proxy_port, internal.RateLimter(http.DefaultServeMux))
 
-	// (4) (marco/tyler)
-	// update python test script to use multi theading
-
-	// (5) (marco/tyler)
-	// write the python server application code that runs in docker, should be simple
-	// and needs to frequenly update redis stats
-
-	// (6)
-	// end to end test,
-	// send request to proxy, proxy -> server , server -> proxy, proxy -> client
-	// latency is track, each servers latency/connections/ect is tracked and updated frequently in redis
-	// < 15 ms of added latency total
-
 }

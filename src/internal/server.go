@@ -17,16 +17,8 @@ const (
 )
 
 type ApplicationsServers struct {
-	Url    string  `yaml:"ip_address"`
-	Name   string  `yaml:"name"`
-	weight float64 `yaml:"weight"` // scale 1-10
-}
-
-func testApplicationServer(url, name string) *ApplicationsServers {
-	return &ApplicationsServers{
-		Url:  url,
-		Name: name,
-	}
+	Url  string `yaml:"ip_address"`
+	Name string `yaml:"name"`
 }
 
 type coreRequest struct {
@@ -41,10 +33,6 @@ func newRequest(url string, headers http.Header, body []byte) coreRequest {
 		headers: headers,
 		body:    body,
 	}
-}
-
-type status struct {
-	issue string
 }
 
 func newHttpClient() *http.Client {
@@ -101,8 +89,6 @@ func (s *serverConfig) parseAlgorithm() loadbalencer {
 		return &random{}
 	case "least connections":
 		return &leastConnections{}
-	case "weighted least connections":
-		return &weightedLC{}
 	case "least response time":
 		return &responseTime{}
 	default:

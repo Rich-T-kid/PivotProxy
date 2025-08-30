@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -21,17 +22,12 @@ var (
 func StatsHandler(w http.ResponseWriter, r *http.Request) {
 	// tbd implement stats endpoint
 	metrics := newMetricsLogger()
-	for {
-		// just read from redis instance and transform to json and transmit it
-		w.Write([]byte("stats endpoint is under construction"))
-		v := metrics.stats()
-		err := json.NewEncoder(w).Encode(v)
-		if err != nil {
-			fmt.Println(err)
-		}
-		time.Sleep(5 * time.Second) // Reduce this very heavily
+	// just read from redis instance and transform to json and transmit it
+	v := metrics.stats()
+	fmt.Println(v)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(v)
 
-	}
 }
 
 // need to add wrapper methods on this for easier logging
@@ -129,7 +125,118 @@ func (m *metricsLogger) collectMetrics(name string, serverTime float64, proxyLat
 	m.proxyLatency(serverTime)
 }
 
-// discuss with team what info we want out of this endpoint
-func (m *metricsLogger) stats() interface{} {
-	return 0
+func (m *metricsLogger) avgListFloat(key string) float64 {
+	mu := 0.0
+	ctx := context.Background()
+	vals, err := m.storage.LRange(ctx, key, 0, -1).Result()
+	if err != nil || len(vals) == 0 {
+		return 0
+	}
+	for _, v := range vals {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			mu += f
+		}
+	}
+	return mu / float64(len(vals))
+}
+
+func (m *metricsLogger) serverNames(ctx context.Context) []string {
+	// Discover servers by scanning requestCount keys: serverN:requestCount
+	var names []string
+	iter := m.storage.Scan(ctx, 0, "server*:requestCount", 0).Iterator()
+	for iter.Next(ctx) {
+		k := iter.Val() // e.g., "server1:requestCount"
+		if idx := strings.IndexByte(k, ':'); idx > 0 {
+			names = append(names, k[:idx])
+		}
+	}
+	// Optionally also scan activeConnections in case requestCount doesn't exist yet
+	iter2 := m.storage.Scan(ctx, 0, "server*:activeConnections", 0).Iterator()
+	for iter2.Next(ctx) {
+		k := iter2.Val()
+		if idx := strings.IndexByte(k, ':'); idx > 0 {
+			name := k[:idx]
+			found := false
+			for _, n := range names {
+				if n == name {
+					found = true
+					break
+				}
+			}
+			if !found {
+				names = append(names, name)
+			}
+		}
+	}
+	return names
+}
+
+func (m *metricsLogger) stats() map[string]interface{} {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	ctx := context.Background()
+
+	names := m.serverNames(ctx)
+
+	type perServer struct {
+		RequestCount      int64    `json:"request_count"`
+		RequestsPerSecond *float64 `json:"requests_per_second"` // nil until we add rolling counters
+		AvgLatencyMs      float64  `json:"avg_latency_ms"`
+		ActiveConnections int64    `json:"active_connections"`
+		Inflight          int64    `json:"inflight"`
+	}
+
+	servers := make(map[string]perServer, len(names))
+	activeServers := 0
+
+	// Use a pipeline for GETs
+	pipe := m.storage.Pipeline()
+	reqGets := make(map[string]*redis.StringCmd, len(names))
+	actGets := make(map[string]*redis.StringCmd, len(names))
+
+	for _, name := range names {
+		reqKey := fmt.Sprintf("%s:requestCount", name)
+		actKey := fmt.Sprintf("%s:activeConnections", name)
+		reqGets[name] = pipe.Get(ctx, reqKey)
+		actGets[name] = pipe.Get(ctx, actKey)
+	}
+
+	_, _ = pipe.Exec(ctx)
+
+	for _, name := range names {
+		var rc, ac int64
+
+		if v, err := reqGets[name].Int64(); err == nil {
+			rc = v
+		}
+		if v, err := actGets[name].Int64(); err == nil {
+			ac = v
+		}
+
+		if ac > 0 {
+			activeServers++
+		}
+
+		avg := m.avgListFloat(fmt.Sprintf("%s:responseTimes", name))
+
+		servers[name] = perServer{
+			RequestCount:      rc,
+			RequestsPerSecond: nil, // TODO: requires rolling time-bucketed counters
+			AvgLatencyMs:      avg,
+			ActiveConnections: ac,
+			Inflight:          ac,
+		}
+	}
+
+	proxyAvg := m.avgListFloat("proxyLatencies")
+
+	out := map[string]interface{}{
+		"active_servers":             activeServers,
+		"servers":                    servers,
+		"proxy_avg_added_latency_ms": proxyAvg,
+		// Optional: include a timestamp
+		"generated_at_unix_ms": time.Now().UnixMilli(),
+	}
+	return out
 }

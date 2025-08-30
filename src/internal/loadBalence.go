@@ -23,7 +23,6 @@ Static algorithms
 
 Dynamic algorithms
 	Least connections
-		weighted least connections
 	least response time
 
 */
@@ -102,22 +101,37 @@ func (r *random) Name() string {
 type leastConnections struct{}
 
 func (lc *leastConnections) balence(request chan RawRequest, servers *serverConfig, metLog *metricsLogger) {
+	m := newMetricsLogger()
+	for req := range request {
+		proxystart := time.Now()
+		idx := minConnections(m, servers)
+		proxyServer := servers.Servers[idx]
+		fwRequest := newRequest(proxyServer.Url, req.R.Header, unwrapBody(&req.R.Body))
+		resp, serverlatency, _ := proxyServer.sendRequest(fwRequest, metLog)
+		writeResponse(req.W, resp)
+		metLog.collectMetrics(proxyServer.Name, serverlatency, time.Since(proxystart).Seconds()*1000)
+
+	}
+
 }
 func (lc *leastConnections) Name() string {
 	return "least connections"
 }
 
-type weightedLC struct{}
-
-func (wlc *weightedLC) balence(request chan RawRequest, servers *serverConfig, metLog *metricsLogger) {
-}
-func (wlc *weightedLC) Name() string {
-	return "weighted least connections"
-}
-
 type responseTime struct{}
 
 func (rp *responseTime) balence(request chan RawRequest, servers *serverConfig, metLog *metricsLogger) {
+	m := newMetricsLogger()
+	for req := range request {
+		proxystart := time.Now()
+		idx := minResponseTime(m, servers)
+		proxyServer := servers.Servers[idx]
+		fwRequest := newRequest(proxyServer.Url, req.R.Header, unwrapBody(&req.R.Body))
+		resp, serverlatency, _ := proxyServer.sendRequest(fwRequest, metLog)
+		writeResponse(req.W, resp)
+		metLog.collectMetrics(proxyServer.Name, serverlatency, time.Since(proxystart).Seconds()*1000)
+
+	}
 }
 func (rp *responseTime) Name() string {
 	return "response time"
@@ -126,6 +140,40 @@ func (rp *responseTime) Name() string {
 func HandleStream(lb loadbalencer, workerChannel chan RawRequest, servers *serverConfig) {
 	fmt.Printf("working with the %+v load balancing algorithm\n", lb.Name())
 	lb.balence(workerChannel, servers, newMetricsLogger())
+}
+
+func serverNames(servers *serverConfig) []string {
+	var names []string
+	for _, server := range servers.Servers {
+		names = append(names, server.Name)
+	}
+	return names
+}
+
+func minConnections(m *metricsLogger, servers *serverConfig) int {
+	names := serverNames(servers)
+	min := int64(1<<63 - 1)
+	minIdx := -1
+	for i, name := range names {
+		if conns := m.activeConnections(name); int64(conns) < min {
+			min = int64(conns)
+			minIdx = i
+		}
+	}
+	return minIdx
+}
+
+func minResponseTime(m *metricsLogger, servers *serverConfig) int {
+	names := serverNames(servers)
+	min := int64(1<<63 - 1)
+	minIdx := -1
+	for i, name := range names {
+		if respTime := m.averageResponseTime(name); int64(respTime) < min {
+			min = int64(respTime)
+			minIdx = i
+		}
+	}
+	return minIdx
 }
 
 // sliding window log for rate limiting
