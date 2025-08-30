@@ -2,13 +2,19 @@ Proxy_ip: "127.0.0.1"
 Proxy_port: 80
 servers:
   - name: server1
-    ip_address : "3.144.245.252"
+    ip_address : "3.13.161.172"
     weight : 5.5
   - name: server2
-    ip_address : "3.17.4.56"
+    ip_address : "3.130.118.123"
     weight: 5.5
   - name: server3
-    ip_address : "3.14.4.245"
+    ip_address : "3.137.47.50"
+    weight: 5.5
+  - name: server4
+    ip_address: "3.149.184.48"
+    weight: 5.5
+  - name: server5
+    ip_address: "3.150.83.27"
     weight: 5.5
 algorithm: "round robin"
 port: 8989
