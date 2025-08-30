@@ -21,11 +21,11 @@ func main() {
 		workerChannel <- internal.RawRequest{W: w, R: r}
 	}
 
-	http.HandleFunc("/", onlyHandler)
+	http.HandleFunc("/", http.HandlerFunc(onlyHandler))
 	http.HandleFunc("/stats", internal.StatsHandler)
 
-	fmt.Printf("running on port %s\n", server.Port)
-	http.ListenAndServe(":"+server.Port, nil)
+	fmt.Printf("running on port %s\n", server.Proxy_port)
+	http.ListenAndServe(":"+server.Proxy_port, internal.RateLimter(http.DefaultServeMux))
 
 	// (4) (marco/tyler)
 	// update python test script to use multi theading

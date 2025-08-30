@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"hash/maphash"
 	"math/rand"
+	"net/http"
 	"time"
 )
 
@@ -125,4 +126,14 @@ func (rp *responseTime) Name() string {
 func HandleStream(lb loadbalencer, workerChannel chan RawRequest, servers *serverConfig) {
 	fmt.Printf("working with the %+v load balancing algorithm\n", lb.Name())
 	lb.balence(workerChannel, servers, newMetricsLogger())
+}
+
+// sliding window log for rate limiting
+func RateLimter(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// check for IP, headers, ect gotta check with team
+		fmt.Println("rate limiting check passed")
+		next.ServeHTTP(w, r)
+	})
+
 }
