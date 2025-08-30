@@ -82,9 +82,11 @@ func (a *ApplicationsServers) sendRequest(clonedRequest coreRequest, metLog *met
 }
 
 type serverConfig struct {
-	Servers      []ApplicationsServers `yaml:"servers"`
-	LoadBalencer string                `yaml:"algorithm"`
-	Port         string                `yaml:"port"`
+	Proxy_ip           string                `yaml:"Proxy_ip"`
+	Proxy_port         string                `yaml:"Proxy_port"`
+	Servers            []ApplicationsServers `yaml:"servers"`
+	LoadBalencer       string                `yaml:"algorithm"`
+	Communication_port string                `yaml:"Communication_port"`
 }
 
 func (s *serverConfig) parseAlgorithm() loadbalencer {

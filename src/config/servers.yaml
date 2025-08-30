@@ -11,6 +11,5 @@ servers:
     ip_address : "3.14.4.245"
     weight: 5.5
 algorithm: "round robin"
-port: 8989
-   
-  
+Communication_port: 8989
+
