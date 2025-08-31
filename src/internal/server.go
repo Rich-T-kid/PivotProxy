@@ -27,22 +27,25 @@ type coreRequest struct {
 	body    []byte
 }
 
+func toProperURL(url string) string {
+	return "http://" + url + ":" + communicationPort
+}
 func newRequest(url string, headers http.Header, body []byte) coreRequest {
 	return coreRequest{
-		url:     "http://" + url + ":" + communicationPort,
+		url:     toProperURL(url) + "/process",
 		headers: headers,
 		body:    body,
 	}
 }
 
-func newHttpClient() *http.Client {
+func newHttpClient(seconds float64) *http.Client {
 	return &http.Client{
-		Timeout: time.Second * 2,
+		Timeout: time.Second * time.Duration(seconds),
 	}
 }
 func (a *ApplicationsServers) sendRequest(clonedRequest coreRequest, metLog *metricsLogger) (coreRequest, float64, error) {
 	reader := bytes.NewReader(clonedRequest.body)
-	req, err := http.NewRequest("GET", clonedRequest.url, reader)
+	req, err := http.NewRequest("POST", clonedRequest.url, reader)
 	if err != nil {
 		return coreRequest{}, 0, err
 	}
@@ -52,7 +55,7 @@ func (a *ApplicationsServers) sendRequest(clonedRequest coreRequest, metLog *met
 
 		}
 	}
-	client := newHttpClient()
+	client := newHttpClient(2)
 	start := time.Now()
 	metLog.addConnection(a.Name) //log
 	resp, err := client.Do(req)
@@ -113,20 +116,35 @@ func InitApplicationServers() (*serverConfig, loadbalencer) {
 }
 
 type RawRequest struct {
-	W http.ResponseWriter
-	R *http.Request
+	W        http.ResponseWriter
+	R        *http.Request
+	Content  []byte
+	KillChan chan struct{}
 }
 
 func writeResponse(w http.ResponseWriter, resp coreRequest) {
-	_, _ = w.Write(resp.body)
 	for k, v := range resp.headers {
 		for _, v := range v {
 			w.Header().Add(k, v)
 		}
 	}
+	_, _ = w.Write(resp.body)
 }
-func unwrapBody(r *io.ReadCloser) []byte {
-	defer (*r).Close()
-	v, _ := io.ReadAll(*r)
+func unwrapBody(r io.ReadCloser) []byte {
+	defer r.Close()
+	v, _ := io.ReadAll(r)
+	fmt.Printf("recieved this from client -> %s\n", string(v))
 	return v
+}
+
+func PingServer(url string) bool {
+	url = toProperURL(url)
+	fmt.Println("pinging server at " + url)
+	client := newHttpClient(0.5)
+	resp, err := client.Get(url)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+	return resp.StatusCode == http.StatusOK
 }

@@ -24,7 +24,6 @@ func StatsHandler(w http.ResponseWriter, r *http.Request) {
 	metrics := newMetricsLogger()
 	// just read from redis instance and transform to json and transmit it
 	v := metrics.stats()
-	fmt.Println(v)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(v)
 

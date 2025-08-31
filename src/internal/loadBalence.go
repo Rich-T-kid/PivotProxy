@@ -36,11 +36,19 @@ func (r *roundRobin) balence(request chan RawRequest, servers *serverConfig, met
 		i++
 		idx := i % len(servers.Servers)
 		proxyServer := servers.Servers[idx]
-		fmt.Printf("(Round Robin) %s is attempting to proccess a request %v\n ", proxyServer.Name, req)
-		fwRequest := newRequest(proxyServer.Url, req.R.Header, unwrapBody(&req.R.Body))
-		resp, serverlatency, _ := proxyServer.sendRequest(fwRequest, metLog)
-		writeResponse(req.W, resp)
+		fmt.Printf("(Round Robin) %s is processing request\n ", proxyServer.Name)
+		fwRequest := newRequest(proxyServer.Url, req.R.Header, req.Content)
+		resp, serverlatency, err := proxyServer.sendRequest(fwRequest, metLog)
+		if err != nil {
+			http.Error(req.W, err.Error(), http.StatusBadGateway)
+			// signal anyway so handler can return
+			close(req.KillChan)
+			continue
+		}
+		fmt.Println("server response ->>> ", string(resp.body), len(resp.body))
 		metLog.collectMetrics(proxyServer.Name, serverlatency, time.Since(proxystart).Seconds()*1000)
+		req.W.Write(resp.body)
+		close(req.KillChan)
 	}
 
 }
@@ -66,10 +74,11 @@ func (u *urlHash) balence(request chan RawRequest, servers *serverConfig, metLog
 		hashVal := h.Sum64()
 		idx := hashVal % uint64(len(servers.Servers))
 		proxyServer := servers.Servers[idx]
-		fwRequest := newRequest(proxyServer.Url, req.R.Header, unwrapBody(&req.R.Body))
+		fwRequest := newRequest(proxyServer.Url, req.R.Header, unwrapBody(req.R.Body))
 		resp, serverlatency, _ := proxyServer.sendRequest(fwRequest, metLog)
 		writeResponse(req.W, resp)
 		metLog.collectMetrics(proxyServer.Name, serverlatency, time.Since(proxystart).Seconds()*1000)
+		close(req.KillChan)
 
 	}
 }
@@ -85,11 +94,11 @@ func (r *random) balence(request chan RawRequest, servers *serverConfig, metLog 
 		n := rand.Intn(100)
 		idx := n % len(servers.Servers)
 		proxyServer := servers.Servers[idx]
-		fwRequest := newRequest(proxyServer.Url, req.R.Header, unwrapBody(&req.R.Body))
+		fwRequest := newRequest(proxyServer.Url, req.R.Header, unwrapBody(req.R.Body))
 		resp, serverlatency, _ := proxyServer.sendRequest(fwRequest, metLog)
-		fmt.Printf("(Random) Application server %s responded with %v", proxyServer.Name, string(resp.body))
 		writeResponse(req.W, resp)
 		metLog.collectMetrics(proxyServer.Name, serverlatency, time.Since(proxystart).Seconds()*1000)
+		close(req.KillChan)
 
 	}
 }
@@ -106,10 +115,11 @@ func (lc *leastConnections) balence(request chan RawRequest, servers *serverConf
 		proxystart := time.Now()
 		idx := minConnections(m, servers)
 		proxyServer := servers.Servers[idx]
-		fwRequest := newRequest(proxyServer.Url, req.R.Header, unwrapBody(&req.R.Body))
+		fwRequest := newRequest(proxyServer.Url, req.R.Header, unwrapBody(req.R.Body))
 		resp, serverlatency, _ := proxyServer.sendRequest(fwRequest, metLog)
 		writeResponse(req.W, resp)
 		metLog.collectMetrics(proxyServer.Name, serverlatency, time.Since(proxystart).Seconds()*1000)
+		close(req.KillChan)
 
 	}
 
@@ -126,10 +136,11 @@ func (rp *responseTime) balence(request chan RawRequest, servers *serverConfig, 
 		proxystart := time.Now()
 		idx := minResponseTime(m, servers)
 		proxyServer := servers.Servers[idx]
-		fwRequest := newRequest(proxyServer.Url, req.R.Header, unwrapBody(&req.R.Body))
+		fwRequest := newRequest(proxyServer.Url, req.R.Header, unwrapBody(req.R.Body))
 		resp, serverlatency, _ := proxyServer.sendRequest(fwRequest, metLog)
 		writeResponse(req.W, resp)
 		metLog.collectMetrics(proxyServer.Name, serverlatency, time.Since(proxystart).Seconds()*1000)
+		close(req.KillChan)
 
 	}
 }
@@ -180,7 +191,8 @@ func minResponseTime(m *metricsLogger, servers *serverConfig) int {
 func RateLimter(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// check for IP, headers, ect gotta check with team
-		fmt.Println("rate limiting check passed")
+		ip := r.Header.Get("IP")
+		fmt.Printf("Received request from IP: %s\n", ip)
 		next.ServeHTTP(w, r)
 	})
 

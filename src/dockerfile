@@ -1,0 +1,28 @@
+# syntax=docker/dockerfile:1
+
+# ---------- Build stage ----------
+FROM golang:1.25-alpine AS builder
+WORKDIR /app
+
+# 1) Prime the module cache
+COPY go.mod go.sum ./
+RUN go mod download
+
+# 2) Copy the rest of the source
+COPY . .
+
+# 3) Build a static binary (no CGO)
+RUN CGO_ENABLED=0 go build -o pivotproxy ./...
+
+# If your main package is at the project root, use:
+# RUN CGO_ENABLED=0 go build -o pivotproxy ./main.go
+# If it's in a subdir, e.g. ./cmd/pivotproxy, use:
+# RUN CGO_ENABLED=0 go build -o pivotproxy ./cmd/pivotproxy
+
+# ---------- Runtime stage ----------
+FROM alpine:3.20
+WORKDIR /app
+# If your app ever does HTTPS/DNS lookups, you'll want certs
+COPY --from=builder /app/pivotproxy .
+EXPOSE 80
+ENTRYPOINT ["/app/pivotproxy"]

@@ -1,4 +1,4 @@
-Proxy_ip: "127.0.0.1"
+Proxy_ip: "localhost"
 Proxy_port: 80
 servers:
   - name: server1

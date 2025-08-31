@@ -42,7 +42,7 @@ func maxArea(height []int) int {
 
 func handler(w http.ResponseWriter, r *http.Request) {
 	// Write a 200 OK status (default if you write something)
-	fmt.Println("request has reached sever <<-->>")
+	fmt.Println("basic <> request has reached sever <<-->>")
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprintln(w, "Hello, World!") // optional response body
 }
@@ -61,14 +61,14 @@ func processWork(w http.ResponseWriter, r *http.Request) {
 	// Read the request body
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to parse request body: %v", err), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("(1)Failed to parse request body: %v", err), http.StatusBadRequest)
 		return
 	}
 	defer r.Body.Close()
-	fmt.Println("Received request body:", string(body)[:2000])
+	fmt.Println("Received request body:", string(body))
 	var intArray IntArray
 	if err := json.Unmarshal(body, &intArray); err != nil {
-		http.Error(w, fmt.Sprintf("Failed to parse request body: %v", err), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("(2)Failed to parse request body: %v", err), http.StatusBadRequest)
 		return
 	}
 	answ := maxArea(intArray.Values)
@@ -78,7 +78,7 @@ func processWork(w http.ResponseWriter, r *http.Request) {
 		"inputSize": len(intArray.Values)})
 }
 
-func example_main() {
+func main() {
 	http.HandleFunc("/", handler)
 	http.HandleFunc("/health", healthCheckHandler)
 	http.HandleFunc("/process", processWork)
