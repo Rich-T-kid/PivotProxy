@@ -22,6 +22,7 @@ PivotProxy forwards client requests to backend application servers while hiding 
 
 ## Getting Started
 Earliest start date: **08/25/25**  
+Finished : **08/31/25**
 Requests are sent to a single public IP and routed to backend servers based on load balancing rules. Metrics can be exposed via an API for monitoring. 
 
 ## Related design document
